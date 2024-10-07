@@ -1,0 +1,73 @@
+# anm_arrecadacao
+
+# cfem_arrecadacao #############################################################
+
+anm_cfem_arrecadacao_endereco <-
+  "https://app.anm.gov.br/dadosabertos/ARRECADACAO/CFEM_Arrecadacao.csv"
+
+anm_arrecadacao_cfem_arrecadacao <- 
+  readr::read_csv(anm_cfem_arrecadacao_endereco,
+                  locale = readr::locale(encoding = "latin1",
+                                         decimal_mark = ","),
+                  col_types = readr::cols(
+                    AnoDoProcesso = readr::col_date(format = "%Y"),
+                    QuantidadeComercializada = readr::col_double(),
+                    ValorRecolhido = readr::col_double(),
+                    DataCriacao = readr::col_datetime(format =
+                                                        "%Y-%m-%d %H:%M:%S"),
+                    .default = readr::col_character()
+                  ))
+
+anm_arrecadacao_cfem_arrecadacao <- anm_arrecadacao_cfem_arrecadacao |>
+  tidyr::unite(competencia, "Mês", "Ano", sep = "-") |> 
+  dplyr::mutate(competencia = stringr::str_c("01-", competencia)) |>
+  dplyr::mutate(competencia = lubridate::dmy(competencia))
+
+
+anm_arrecadacao_cfem_arrecadacao |> dplyr::glimpse()
+
+# Função para buscar coordenadas de um município pelo código IBGE
+get_municipio_info <- function(codigo_municipio) {
+  # URL da API com o código do município
+  url <- paste0("https://servicodados.ibge.gov.br/api/v1/
+                localidades/municipios/", codigo_municipio)
+  
+  # Fazer a requisição usando httr::GET
+  response <- httr::GET(url)
+  
+  # Verificar se a requisição foi bem-sucedida
+  if (httr::status_code(response) == 200) {
+    # Parsear o resultado em JSON usando jsonlite::fromJSON
+    municipio_data <- jsonlite::fromJSON(httr::content(response, "text"))
+    
+    # Extrair informações
+    codigo_municipio_7d <- municipio_data$id
+    nome_municipio <- municipio_data$nome
+    mesoregiao <- municipio_data$microrregiao$mesorregiao$nome
+    unidade_federativa <- municipio_data$microrregiao$mesorregiao$UF$nome
+    regiao <- municipio_data$microrregiao$mesorregiao$UF$regiao$nome
+    codigo_municipio_6d <- municipio_data$`regiao-imediata`$id
+    nome_regiao_imediata <- municipio_data$`regiao-imediata`$nome
+    
+    return(data.frame(codigo_municipio_7d, nome_municipio, mesoregiao,
+                      unidade_federativa, regiao, codigo_municipio_6d,
+                      nome_regiao_imediata))
+  } else {
+    stop("Erro ao acessar a API do IBGE")
+  }
+}
+
+# Para buscar informações de múltiplos municípios
+
+codigos_municipios <- anm_arrecadacao_cfem_arrecadacao |>
+  dplyr::select(CodigoMunicipio, Município, UF) |>
+  dplyr::filter(UF == "MT") |>
+  dplyr::select(CodigoMunicipio) |> unique() |>
+  dplyr::pull()
+
+# Obter informações de todos os municípios usando do.call com lapply
+municipios_info <- do.call(rbind, lapply(codigos_municipios, get_municipio_info))
+
+municipios_info |> dplyr::glimpse()
+
+anm_arrecadacao_cfem_arrecadacao |> dplyr::glimpse()

@@ -1,0 +1,80 @@
+COMEXSTAT_NCM_ESTADO - OPÇÃO 1 DO CÓDIGO DE DOWNLOAD (USANDO  LOOP)
+
+setwd("D:/comexstat/estado")
+
+anos <- as.integer(lubridate::year(lubridate::today())-4):
+  as.integer(lubridate::year(lubridate::today()))
+EXP <- vector(mode = 'list', length = length(anos))
+IMP <- vector(mode = 'list', length = length(anos))
+
+for(i in seq_along(anos)){
+  
+  # Tentativa com controle de erros para exportação
+  sucesso_exp <- FALSE
+  while(!sucesso_exp) {
+    tryCatch({
+      link_file_exp <- paste0("https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/EXP_", anos[i], ".csv")
+      EXP[[i]] <- readr::read_csv2(link_file_exp)
+      sucesso_exp <- TRUE  # Se sucesso, sai do loop
+    }, error = function(e) {
+      cat("Erro ao baixar o arquivo de exportação do ano", anos[i], "- Tentando novamente...\n")
+      Sys.sleep(5)  # Aguarda 5 segundos antes de tentar novamente
+    })
+  }
+  
+  # Tentativa com controle de erros para importação
+  sucesso_imp <- FALSE
+  while(!sucesso_imp) {
+    tryCatch({
+      link_file_imp <- paste0("https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/IMP_", anos[i], ".csv")
+      IMP[[i]] <- readr::read_csv2(link_file_imp)
+      sucesso_imp <- TRUE  # Se sucesso, sai do loop
+    }, error = function(e) {
+      cat("Erro ao baixar o arquivo de importação do ano", anos[i], "- Tentando novamente...\n")
+      Sys.sleep(5)  # Aguarda 5 segundos antes de tentar novamente
+    })
+  }
+}
+
+COMEXSTAT_NCM_ESTADO - OPÇÃO 1 DO CÓDIGO DE DOWNLOAD (USANDO  FUNÇÃO)
+
+setwd("D:/comexstat/estado")
+
+anos <- as.integer(lubridate::year(lubridate::today())-4):as.integer(lubridate::year(lubridate::today()))
+EXP <- vector(mode = 'list', length = length(anos))
+IMP <- vector(mode = 'list', length = length(anos))
+
+# Função para tentar baixar arquivos, com um limite de tentativas
+download_file <- function(link) {
+  max_tentativas <- 5
+  tentativa <- 0
+  sucesso <- FALSE
+  resultado <- NULL
+  
+  while(tentativa < max_tentativas && !sucesso) {
+    tentativa <- tentativa + 1
+    tryCatch({
+      resultado <- readr::read_csv2(link, show_col_types = FALSE)
+      sucesso <- TRUE
+    }, error = function(e) {
+      cat("Erro ao baixar o arquivo", link, "- Tentativa", tentativa, "de", max_tentativas, "- Tentando novamente...\n")
+      Sys.sleep(5)  # Aguarda 5 segundos antes de tentar novamente
+    })
+  }
+  
+  if (!sucesso) {
+    cat("Falha ao baixar o arquivo após", max_tentativas, "tentativas:", link, "\n")
+  }
+  
+  return(resultado)
+}
+
+for(i in seq_along(anos)){
+  # Download de exportação
+  link_file_exp <- paste0("https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/EXP_", anos[i], ".csv")
+  EXP[[i]] <- download_file(link_file_exp)
+  
+  # Download de importação
+  link_file_imp <- paste0("https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/IMP_", anos[i], ".csv")
+  IMP[[i]] <- download_file(link_file_imp)
+}
